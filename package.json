@@ -4,12 +4,17 @@
   "description": "Backend Project",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon src/index.js"
   },
   "keywords": [
     "backend",
     "javascript"
   ],
   "author": "Amit Jain",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "dotenv": "^16.4.2",
+    "nodemon": "^3.0.3"
+  }
 }
