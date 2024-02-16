@@ -3,8 +3,9 @@ import { DB_NAME } from "../constants.js";
 const connection = async () => {
   try {
     const connectOutput = await mongoose.connect(
-      `${process.env.MONGO_URL}\ ${DB_NAME}`
+      `${process.env.MONGO_URL}/${DB_NAME}`
     );
+
     console.log(
       `\n MongoDB Connected !! DBHost : ${connectOutput.connection.host}`
     );

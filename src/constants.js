@@ -1,1 +1,1 @@
-export const DB_NAME = "SPM";
+export const DB_NAME = "videotube";
