@@ -33,17 +33,15 @@ const registerUser = asyncHandler(async (req, res) => {
   if (
     [fullName, email, username, password].some((field) => field?.trim() === "")
   ) {
-    return new ApiErrors(400, "All Fields are required");
+    throw new ApiErrors(400, "All Fields are required");
   }
 
   const existedUser = await User.findOne({
     $or: [{ username }, { email }],
   });
-  console.log(existedUser);
   if (existedUser) {
     throw new ApiErrors(409, "User already exists");
   }
-
   const avatorLocation = req.files?.avatar[0].path;
   console.log(avatorLocation);
   if (!avatorLocation) {
@@ -164,4 +162,36 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("refreshToken", options)
     .json(new ApiResponses(200, {}, "User logged out successfully"));
 });
-export { registerUser, loginUser, logoutUser };
+
+const refershAccessToken = asyncHandler(async (req, res) => {
+  try {
+    const incomingRefreshToken =
+      req.cookies.refreshToken || req.body.refreshToken;
+
+    if (!incomingRefreshToken) throw new ApiErrors(401, "Unauthorized request");
+    const decoded_token = jwt.verify(
+      incomingRefreshToken.process.env.REFRESH_TOKEN_SECRET
+    );
+    const user = jwt.findById(decoded_token._id);
+    if (!user) throw new ApiErrors(401, "Invalid refresh token");
+
+    if (incomingRefreshToken !== user?.refreshToken)
+      throw new ApiErrors(401, "Refresh token is expired");
+
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+    const { refreshToken, accessToken } = await generateAccessAndRefreshToken(
+      user.username
+    );
+    return res
+      .status(201)
+      .cookie("refreshToken", refreshToken, options)
+      .cookie("accessToken", accessToken, options)
+      .json(new ApiResponses(200, "Refresh token successfully"));
+  } catch (error) {
+    throw new ApiErrors(401, error?.message || "Invalid token");
+  }
+});
+export { registerUser, loginUser, logoutUser, refershAccessToken };
