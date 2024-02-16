@@ -41,15 +41,14 @@ const registerUser = asyncHandler(async (req, res) => {
   });
   console.log(existedUser);
   if (existedUser) {
-    return new ApiErrors(409, "User already exists");
+    throw new ApiErrors(409, "User already exists");
   }
 
-  const avatorLocation = req.files?.avator[0].path;
+  const avatorLocation = req.files?.avatar[0].path;
   console.log(avatorLocation);
   if (!avatorLocation) {
-    return new ApiErrors(400, "Avator File is required");
+    throw new ApiErrors(400, "Avator File is required");
   }
-  console.log(avatorLocation);
   let coverImagePath;
 
   if (
@@ -59,20 +58,22 @@ const registerUser = asyncHandler(async (req, res) => {
   ) {
     coverImagePath = req.files.coverImage[0].path;
   }
+
+  console.log(coverImagePath);
   const avator = await uploadOnCloudinary(avatorLocation);
   const coverImage = await uploadOnCloudinary(coverImagePath);
+  console.log(avator.url);
+  console.log(coverImage);
   const user = await User.create({
     fullName,
-    avator: avator.url,
+    avatar: avator.url,
     coverImage: coverImage?.url || "",
     email,
     password,
     username: username.toLowerCase(),
   });
 
-  const createdUser = User.findByIf(user._id).select(
-    "-password - refreshToken"
-  );
+  const createdUser = await User.findById(user._id);
 
   if (!createdUser) {
     throw new ApiErrors(500, "Something went wrong");
