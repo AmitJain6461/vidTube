@@ -103,7 +103,7 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiErrors(401, "Invalid user credentials");
   }
 
-  const isPasswordValid = await user.isPasswordValid(password);
+  const isPasswordValid = await user.isPasswordCorrect(password);
   if (!isPasswordValid) {
     throw new error(400, "Invalid user credentials");
   }
@@ -139,7 +139,7 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-  await user.findByIdAndUpdate(
+  await User.findByIdAndUpdate(
     req.user._id,
     {
       $unset: {
@@ -170,7 +170,8 @@ const refershAccessToken = asyncHandler(async (req, res) => {
 
     if (!incomingRefreshToken) throw new ApiErrors(401, "Unauthorized request");
     const decoded_token = jwt.verify(
-      incomingRefreshToken.process.env.REFRESH_TOKEN_SECRET
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
     );
     const user = jwt.findById(decoded_token._id);
     if (!user) throw new ApiErrors(401, "Invalid refresh token");
