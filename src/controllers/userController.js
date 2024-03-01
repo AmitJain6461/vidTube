@@ -195,4 +195,102 @@ const refershAccessToken = asyncHandler(async (req, res) => {
     throw new ApiErrors(401, error?.message || "Invalid token");
   }
 });
-export { registerUser, loginUser, logoutUser, refershAccessToken };
+
+const updatePassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const user = User.findById(req.user._id);
+  const check = await user.isPasswordCorrect(oldPassword);
+  if (!check) throw new ApiErrors(404, "Invalid Password");
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+
+  res
+    .status(200)
+    .json(new ApiResponses(200, [], "Password Change Successfully"));
+});
+const getUser = asyncHandler(async (req, res) => {
+  const user = req?.user;
+  if (!user) throw new ApiErrors(404, "Please Login");
+  res
+    .status(200)
+    .json(new ApiResponses(200, user, "Fetched User Successfully"));
+});
+const updateDetails = asyncHandler(async (req, res) => {
+  const { firstName, email } = req.body;
+  if (!firstName || !email) throw new ApiErrors(404, "Enter All Fields");
+
+  const user = User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        firstName,
+        email,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password");
+
+  res
+    .status(200)
+    .json(new ApiResponses(200, user, "Profile update successfully"));
+});
+const updateAvatar = asyncHandler(async (req, res) => {
+  const localPath = req.file?.path;
+
+  if (!localPath) throw new ApiErrors(404, "Please upload image");
+
+  const avatar = await uploadOnCloudinary(localPath);
+  if (!avatar) throw new ApiErrors(400, "Unable to upload File");
+
+  const user = User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        avatar: avatar.url,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password");
+
+  res.status(200).json(200, user, "Avatar update successfully");
+});
+
+const updateCoverImage = asyncHandler(async (req, res) => {
+  const localPath = req.file?.path;
+  if (!localPath) throw new ApiErrors(404, "Please upload Image");
+
+  const coverImage = uploadOnCloudinary(localPath);
+
+  if (!coverImage)
+    throw new ApiErrors(404, "Error while uploading on cloudinary");
+
+  const user = User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        coverImage: coverImage.url,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password");
+
+  res
+    .status(200)
+    .json(new ApiResponses(200, user, "Image Updated Successfully"));
+});
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refershAccessToken,
+  updatePassword,
+  updateDetails,
+  getUser,
+};
