@@ -3,7 +3,10 @@ import { ApiErrors } from "../utils/ApiErrors.js";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import { User } from "../models/userModel.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  deleteFileFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 import { ApiResponses } from "../utils/ApiResponses.js";
 import { app } from "../app.js";
 
@@ -244,10 +247,10 @@ const updateAvatar = asyncHandler(async (req, res) => {
   const localPath = req.file?.path;
 
   if (!localPath) throw new ApiErrors(404, "Please upload image");
-
+  const prevImagePath = req.user.avatar?.split("/").slice(-1)[0].split(".")[0];
   const avatar = await uploadOnCloudinary(localPath);
   if (!avatar) throw new ApiErrors(400, "Unable to upload File");
-
+  await deleteFileFromCloudinary(prevImagePath);
   const user = await User.findByIdAndUpdate(
     req.user._id,
     {
@@ -268,12 +271,14 @@ const updateAvatar = asyncHandler(async (req, res) => {
 const updateCoverImage = asyncHandler(async (req, res) => {
   const localPath = req.file?.path;
   if (!localPath) throw new ApiErrors(404, "Please upload Image");
-
+  const prevImagePath = req.user.coverImage
+    ?.split("/")
+    .slice(-1)[0]
+    .split(".")[0];
   const coverImage = await uploadOnCloudinary(localPath);
-
   if (!coverImage)
     throw new ApiErrors(404, "Error while uploading on cloudinary");
-
+  await deleteFileFromCloudinary(prevImagePath);
   const user = await User.findByIdAndUpdate(
     req.user._id,
     {
