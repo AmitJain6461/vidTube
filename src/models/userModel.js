@@ -41,7 +41,7 @@ const userSchema = new Schema(
       type: String,
       required: [true, "Password is required"],
     },
-    refershToken: {
+    refreshToken: {
       type: String,
     },
   },
@@ -70,7 +70,7 @@ userSchema.methods.generateAccessToken = function () {
       email: this.email,
       fullName: this.fullName,
     },
-    proceess.env.ACCESS_TOKEN_SECRET,
+    process.env.ACCESS_TOKEN_SECRET,
     {
       expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
     }

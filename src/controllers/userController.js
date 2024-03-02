@@ -7,8 +7,8 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponses } from "../utils/ApiResponses.js";
 import { app } from "../app.js";
 
-const generateAccessAndRefreshToken = async (username) => {
-  const user = await User.findOne(username);
+const generateAccessAndRefreshToken = async (id) => {
+  const user = await User.findOne(id);
   if (!user) return null;
 
   const refreshToken = user.generateRefreshToken();
@@ -105,11 +105,11 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const isPasswordValid = await user.isPasswordCorrect(password);
   if (!isPasswordValid) {
-    throw new error(400, "Invalid user credentials");
+    throw new ApiErrors(400, "Invalid user credentials");
   }
 
   const { refreshToken, accessToken } = await generateAccessAndRefreshToken(
-    username
+    user._id
   );
 
   const loggedInUser = await User.findById(user._id).select(
@@ -173,10 +173,11 @@ const refershAccessToken = asyncHandler(async (req, res) => {
       incomingRefreshToken,
       process.env.REFRESH_TOKEN_SECRET
     );
-    const user = jwt.findById(decoded_token._id);
+    const user = await User.findById(decoded_token._id);
     if (!user) throw new ApiErrors(401, "Invalid refresh token");
-
-    if (incomingRefreshToken !== user?.refreshToken)
+    console.log(user.refreshToken);
+    console.log(incomingRefreshToken);
+    if (incomingRefreshToken !== user.refreshToken)
       throw new ApiErrors(401, "Refresh token is expired");
 
     const options = {
@@ -184,13 +185,13 @@ const refershAccessToken = asyncHandler(async (req, res) => {
       secure: true,
     };
     const { refreshToken, accessToken } = await generateAccessAndRefreshToken(
-      user.username
+      user._id
     );
     return res
       .status(201)
       .cookie("refreshToken", refreshToken, options)
       .cookie("accessToken", accessToken, options)
-      .json(new ApiResponses(200, "Refresh token successfully"));
+      .json(new ApiResponses(200, "Refresh token updated successfully"));
   } catch (error) {
     throw new ApiErrors(401, error?.message || "Invalid token");
   }
@@ -198,8 +199,10 @@ const refershAccessToken = asyncHandler(async (req, res) => {
 
 const updatePassword = asyncHandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
-  const user = User.findById(req.user._id);
+  const user = await User.findById(req.user._id);
+  console.log(req.user._id);
   const check = await user.isPasswordCorrect(oldPassword);
+  console.log(check);
   if (!check) throw new ApiErrors(404, "Invalid Password");
 
   user.password = newPassword;
@@ -217,14 +220,14 @@ const getUser = asyncHandler(async (req, res) => {
     .json(new ApiResponses(200, user, "Fetched User Successfully"));
 });
 const updateDetails = asyncHandler(async (req, res) => {
-  const { firstName, email } = req.body;
-  if (!firstName || !email) throw new ApiErrors(404, "Enter All Fields");
+  const { fullName, email } = req.body;
+  if (!fullName || !email) throw new ApiErrors(404, "Enter All Fields");
 
-  const user = User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     req.user._id,
     {
       $set: {
-        firstName,
+        fullName,
         email,
       },
     },
@@ -232,7 +235,7 @@ const updateDetails = asyncHandler(async (req, res) => {
       new: true,
     }
   ).select("-password");
-
+  console.log(user);
   res
     .status(200)
     .json(new ApiResponses(200, user, "Profile update successfully"));
@@ -245,7 +248,7 @@ const updateAvatar = asyncHandler(async (req, res) => {
   const avatar = await uploadOnCloudinary(localPath);
   if (!avatar) throw new ApiErrors(400, "Unable to upload File");
 
-  const user = User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     req.user._id,
     {
       $set: {
@@ -257,19 +260,21 @@ const updateAvatar = asyncHandler(async (req, res) => {
     }
   ).select("-password");
 
-  res.status(200).json(200, user, "Avatar update successfully");
+  res
+    .status(200)
+    .json(new ApiResponses(200, user, "Avatar update successfully"));
 });
 
 const updateCoverImage = asyncHandler(async (req, res) => {
   const localPath = req.file?.path;
   if (!localPath) throw new ApiErrors(404, "Please upload Image");
 
-  const coverImage = uploadOnCloudinary(localPath);
+  const coverImage = await uploadOnCloudinary(localPath);
 
   if (!coverImage)
     throw new ApiErrors(404, "Error while uploading on cloudinary");
 
-  const user = User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     req.user._id,
     {
       $set: {
@@ -285,6 +290,72 @@ const updateCoverImage = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponses(200, user, "Image Updated Successfully"));
 });
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+
+  if (!username?.trim()) throw new ApiErrors(404, "Username is misssing");
+
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      $addFields: {
+        subscriberCount: {
+          $size: "$subscribers",
+        },
+        channelSubscribedToCount: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscriberCount: 1,
+        channelSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
+
+  if (!channel?.length) throw new ApiErrors(404, "channel doesn't exists");
+  return res
+    .status(200)
+    .json(
+      new ApiResponses(200, channel[0], "User Channel Fetched Successfully")
+    );
+});
+
 export {
   registerUser,
   loginUser,
@@ -293,4 +364,7 @@ export {
   updatePassword,
   updateDetails,
   getUser,
+  getUserChannelProfile,
+  updateAvatar,
+  updateCoverImage,
 };
