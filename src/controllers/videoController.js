@@ -4,6 +4,9 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { Video } from "./../models/videoModel.js";
 import { ApiResponses } from "../utils/ApiResponses.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { Comment } from "../models/commentModel.js";
+import { Like } from "../models/likeModel.js";
+import { Playlist } from "../models/playlistModel.js";
 
 const isUserOwner = async (videoId, req) => {
   const video = await Video.findById(videoId);
@@ -114,13 +117,115 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
   const videoId = req.params;
+  const isauthorized = isUserOwner(videoId, req);
+  if (!isauthorized) throw new ApiErrors(404, "Unauthorized access");
   if (!videoId) throw new ApiErrors(404, "Invalid videoid");
   const video = await Video.findById(videoId);
   if (!video) throw new ApiErrors(404, "Video does not exists");
-  const isauthorized = isUserOwner(videoId, req);
-  if (!isauthorized) throw new ApiErrors(404, "Unauthorized access");
+
   res
     .status(200)
     .json(new ApiResponses(200, video, "Video fetched successfully"));
 });
-export { getAllVideos, publishAVideo, getVideoById };
+
+const updateVideo = asyncHandler(async (req, res) => {
+  const { title, description } = req.body;
+  const localPathThumbnail = req.file?.path;
+  const { videoId } = req.params;
+  if (!videoId) throw new ApiErrors(404, "Videoid is required");
+  const isauthorized = isUserOwner(videoId, req);
+  if (!isauthorized) throw new ApiErrors(404, "Unauthorised access");
+
+  if (!(title && description && localPathThumbnail))
+    throw new ApiErrors(404, "Title, description and thumbnail is required");
+
+  const thumbnail = await uploadOnCloudinary(localPathThumbnail);
+  if (!thumbnail?.url)
+    throw new ApiErrors(404, "Error while uploading on cloudinary");
+
+  const video = await Video.findByIdAndUpdate(
+    videoId,
+    {
+      $set: {
+        title,
+        description,
+        thumbnail: thumbnail.url,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+
+  if (!video) throw new ApiErrors(404, "Error while updadating the video");
+
+  res
+    .status(200)
+    .json(new ApiResponses(200, video, "Video updated successfully"));
+});
+
+const deleteVideo = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
+  if (!videoId) throw new ApiErrors(404, "Videoid is required");
+
+  const isauthorized = isUserOwner(videoId, req);
+  if (!isauthorized) throw new ApiErrors(404, "Unauthorised access");
+
+  const video = await Video.findById(videoId);
+  if (!video) throw new ApiErrors(404, "No video exists");
+
+  const deletedVideo = await Video.findByIdAndDelete(videoId);
+  await Comment.deleteMany({ video: videoId });
+  await Like.deleteMany({ video: videoId });
+
+  const playlists = Playlist.find({ video: videoId });
+
+  for (const playlist of playlists) {
+    await Playlist.findByIdAndUpdate(
+      playlist._id,
+      { $pull: { video: videoId } },
+      { new: true }
+    );
+  }
+
+  if (!deleteVideo) throw new ApiErrors(404, "Error while deleting video");
+
+  res.status(200).json(200, {}, "Video deleted successfully");
+});
+
+const togglePublishButton = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
+  if (!videoId) throw new ApiErrors(404, "Videoid is required");
+  const isauthorized = isUserOwner(videoId, req);
+
+  if (!isauthorized) throw new ApiErrors(404, "Unauthorised access");
+
+  const video = Video.findById(videoId);
+  if (!video) throw new ApiErrors(404, "Video does not exists");
+  const togglePublished = !video?.isPublished;
+
+  const updatedVideo = Video.findByIdAndUpdate(
+    videoId,
+    {
+      $set: {
+        isPublished: togglePublished,
+      },
+    },
+    { new: true }
+  );
+
+  if (!updateVideo)
+    throw new ApiErrors(404, "Error while toggling isPublished Button");
+
+  res
+    .status(200)
+    .json(new ApiResponses(200, updatedVideo, "Toggled Successfully"));
+});
+export {
+  getAllVideos,
+  publishAVideo,
+  getVideoById,
+  updateVideo,
+  deleteVideo,
+  togglePublishButton,
+};
