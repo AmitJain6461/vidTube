@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-const likeSchema = mongoose.Schema(
+const likeSchema = new mongoose.Schema(
   {
     likedBy: {
       type: Schema.Types.ObjectId,

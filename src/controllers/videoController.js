@@ -3,7 +3,10 @@ import { ApiErrors } from "../utils/ApiErrors.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Video } from "./../models/videoModel.js";
 import { ApiResponses } from "../utils/ApiResponses.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  deleteFileFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 import { Comment } from "../models/commentModel.js";
 import { Like } from "../models/likeModel.js";
 import { Playlist } from "../models/playlistModel.js";
@@ -16,8 +19,9 @@ const isUserOwner = async (videoId, req) => {
 };
 
 const getAllVideos = asyncHandler(async (req, res) => {
-  let { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
-
+  let { page = 1, limit = 10, query, sortBy, sortType } = req.query;
+  const userId = req.user?._id;
+  console.log(userId);
   //   first match with userID then search result based on query then sort results and then perform pagination
   page = parseInt(page);
   limit = parseInt(limit);
@@ -26,11 +30,12 @@ const getAllVideos = asyncHandler(async (req, res) => {
   limit = Math.min(20, Math.max(1, limit));
 
   const pipeline = [];
+  console.log(isValidObjectId(userId));
   if (!userId || !isValidObjectId(userId))
     throw new ApiErrors(404, "Invalid user");
   const resultMatch = {
     $match: {
-      owner: Mongoose.Types.ObjectId(userId),
+      owner: userId,
     },
   };
   pipeline.push(resultMatch);
@@ -71,7 +76,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
   pipeline.push(skip);
   pipeline.push(lim);
 
-  const videos = Video.aggregate(pipeline);
+  const videos = await Video.aggregate(pipeline);
   if (!videos | (videos.length == 0))
     throw new ApiErrors(404, "No videos found");
 
@@ -94,18 +99,18 @@ const publishAVideo = asyncHandler(async (req, res) => {
   if (!(localVideo && localThumbnail))
     throw new ApiErrors(404, "Video and thumbnail is required");
 
-  const videoURL = await uploadOnCloudinary(localVideo)?.url;
-  const thumbnailURL = await uploadOnCloudinary(localThumbnail)?.url;
+  const videoFile = await uploadOnCloudinary(localVideo);
+  const thumbnail = await uploadOnCloudinary(localThumbnail);
 
-  if (!(videoURL && thumbnailURL))
+  if (!(videoFile && thumbnail))
     throw new ApiErrors(404, "Error while uploading files on cloudinary");
 
   const video = await Video.create({
     title,
     description,
-    videoFile: videoURL,
-    duration: videoURL.duration,
-    thumbnail: thumbnailURL,
+    videoFile: videoFile?.url,
+    duration: videoFile.duration,
+    thumbnail: thumbnail?.url,
     isPublished,
     owner: userId,
   });
@@ -116,7 +121,9 @@ const publishAVideo = asyncHandler(async (req, res) => {
 });
 
 const getVideoById = asyncHandler(async (req, res) => {
-  const videoId = req.params;
+  const { videoId } = req.params;
+  console.log(videoId);
+  if (!isValidObjectId(videoId)) throw new ApiErrors(404, "Id is invalid");
   const isauthorized = isUserOwner(videoId, req);
   if (!isauthorized) throw new ApiErrors(404, "Unauthorized access");
   if (!videoId) throw new ApiErrors(404, "Invalid videoid");
@@ -143,6 +150,12 @@ const updateVideo = asyncHandler(async (req, res) => {
   if (!thumbnail?.url)
     throw new ApiErrors(404, "Error while uploading on cloudinary");
 
+  const prevVideo = await Video.findById(videoId);
+  const prevVideoPath = prevVideo.thumbnail
+    ?.split("/")
+    .slice(-1)[0]
+    .split(".")[0];
+  await deleteFileFromCloudinary(prevVideoPath);
   const video = await Video.findByIdAndUpdate(
     videoId,
     {
@@ -173,24 +186,32 @@ const deleteVideo = asyncHandler(async (req, res) => {
 
   const video = await Video.findById(videoId);
   if (!video) throw new ApiErrors(404, "No video exists");
-
+  const prevVideoPath = video.videoFile?.split("/").slice(-1)[0].split(".")[0];
+  const prevThumbnailPath = video.thumbnail
+    ?.split("/")
+    .slice(-1)[0]
+    .split(".")[0];
   const deletedVideo = await Video.findByIdAndDelete(videoId);
   await Comment.deleteMany({ video: videoId });
   await Like.deleteMany({ video: videoId });
 
   const playlists = Playlist.find({ video: videoId });
 
-  for (const playlist of playlists) {
-    await Playlist.findByIdAndUpdate(
-      playlist._id,
-      { $pull: { video: videoId } },
-      { new: true }
-    );
+  if (playlists.length) {
+    for (const playlist of playlists) {
+      await Playlist.findByIdAndUpdate(
+        playlist._id,
+        { $pull: { video: videoId } },
+        { new: true }
+      );
+    }
   }
 
   if (!deleteVideo) throw new ApiErrors(404, "Error while deleting video");
+  await deleteFileFromCloudinary(prevVideoPath);
+  await deleteFileFromCloudinary(prevThumbnailPath);
 
-  res.status(200).json(200, {}, "Video deleted successfully");
+  res.status(200).json(new ApiResponses(200, {}, "Video deleted successfully"));
 });
 
 const togglePublishButton = asyncHandler(async (req, res) => {

@@ -1,7 +1,7 @@
 import { Like } from "../models/likeModel.js";
 import { Tweet } from "../models/tweetModel.js";
 import { ApiErrors } from "../utils/ApiErrors.js";
-import { ApiResponses } from "../utils/ApiResponses";
+import { ApiResponses } from "../utils/ApiResponses.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import mongoose from "mongoose";
 const isUserOwner = async (tweetId, req) => {

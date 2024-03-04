@@ -1,36 +1,38 @@
-import { verifyJWT } from "../middlewares/authMiddleware.js"
-import { Router } from express
-import { upload } from "../middlewares/multer.js"
+import { verifyJWT } from "../middlewares/authMiddleware.js";
+import { Router } from "express";
+import { upload } from "../middlewares/multer.js";
 import {
-    deleteVideo,
-    getAllVideos,
-    getVideoById,
-    publishAVideo,
-    togglePublishButton,
-    updateVideo
-} from "../controllers/videoController.js"
+  deleteVideo,
+  getAllVideos,
+  getVideoById,
+  publishAVideo,
+  togglePublishButton,
+  updateVideo,
+} from "../controllers/videoController.js";
 
-
-const router = Router()
-router.use(verifyJWT)
-router.route("/getAllVideos").get(getAllVideos)
-router.route("/uploadVideo").post(upload.fields([
+const router = Router();
+router.use(verifyJWT);
+router.route("/").get(getAllVideos);
+router.route("/uploadVideo").post(
+  upload.fields([
     {
-        name: "videoFile",
-        maxCount: 1,
+      name: "videoFile",
+      maxCount: 1,
     },
     {
-        name: "thumbnail",
-        maxCount: 1,
-    },]), publishAVideo)
+      name: "thumbnail",
+      maxCount: 1,
+    },
+  ]),
+  publishAVideo
+);
 
 router
-    .route("/:videoId")
-    .get(getVideoById)
-    .delete(deleteVideo)
-    .patch(upload.single("thumbnail"), updateVideo)
+  .route("/:videoId")
+  .get(getVideoById)
+  .delete(deleteVideo)
+  .patch(upload.single("thumbnail"), updateVideo);
 
-router.route("/toogle/:videoId").patch(togglePublishButton)
+router.route("/toogle/:videoId").patch(togglePublishButton);
 
-
-export default router
+export default router;

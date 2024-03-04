@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
 
-const tweetSchema = mongoose.Schema(
+const tweetSchema = new mongoose.Schema(
   {
     owner: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
     content: {

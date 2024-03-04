@@ -1,13 +1,13 @@
 import mongoose, { Schema } from "mongoose";
 
-const playlistSchema = mongoose.Schema(
+const playlistSchema = new mongoose.Schema(
   {
     listName: {
       type: String,
       required: true,
     },
     description: {
-      type: string,
+      type: String,
     },
     videos: [
       {
