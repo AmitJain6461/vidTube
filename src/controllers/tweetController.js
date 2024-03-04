@@ -28,11 +28,12 @@ const createTweet = asyncHandler(async (req, res) => {
     .json(new ApiResponses(200, tweet, "Tweet created successfully"));
 });
 const getUserTweets = asyncHandler(async (req, res) => {
-  const { limit = 10, page = 1, query, userId } = req.query;
+  let { limit = 10, page = 1, query } = req.query;
+  const userId = req.user?._id;
   limit = parseInt(limit);
   page = parseInt(page);
-  page = min(1, page);
-  limit = max(20, min(10, limit));
+  page = Math.min(1, page);
+  limit = Math.max(20, Math.min(10, limit));
 
   if (!userId && !mongoose.Types.ObjectId(userId))
     throw new ApiErrors(404, "Invalid userid");
@@ -40,18 +41,20 @@ const getUserTweets = asyncHandler(async (req, res) => {
   // match based on user
   pipeline.push({
     $match: {
-      owner: new mongoose.Types.ObjectId(userId),
+      owner: userId,
     },
   });
 
   //query based results
-  pipeline.push({
-    $match: {
-      $text: {
-        $search: query,
+  if (query) {
+    pipeline.push({
+      $match: {
+        $text: {
+          $search: query,
+        },
       },
-    },
-  });
+    });
+  }
 
   // pagination
   pipeline.push({
@@ -66,7 +69,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
       content: 1,
     },
   });
-  const Tweets = Tweet.aggregate(pipeline);
+  const Tweets = await Tweet.aggregate(pipeline);
   if (!Tweets) throw new ApiErrors(404, "Error while fetching tweets");
 
   res
@@ -78,7 +81,7 @@ const updateTweet = asyncHandler(async (req, res) => {
   const { content } = req.body;
   if (!tweetId) throw new ApiErrors(404, "Tweetid is required");
   const oldTweet = await Tweet.findById(tweetId);
-  if (oldTweet) throw new ApiErrors(404, "Tweet does not exists");
+  if (!oldTweet) throw new ApiErrors(404, "Tweet does not exists");
   const isAuthorised = isUserOwner(tweetId, req);
   if (!isAuthorised) throw new ApiErrors(404, "Unauthorised access");
 
@@ -106,7 +109,7 @@ const deleteTweet = asyncHandler(async (req, res) => {
   if (!isAuthorised) throw new ApiErrors(404, "Unauthorised access");
 
   const deletedTweet = await Tweet.findByIdAndDelete(tweetId);
-  await Like.deleteMany(tweetId);
+  await Like.deleteMany({ tweet: tweetId });
 
   if (!deletedTweet) throw new ApiErrors(404, "Error while deleting the tweet");
 
