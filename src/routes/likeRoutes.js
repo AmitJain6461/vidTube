@@ -1,9 +1,10 @@
-import { Router } from "mongoose";
+import { Router } from "express";
 import { verifyJWT } from "../middlewares/authMiddleware.js";
 import {
   getAllLikedVideos,
   toggleCommentLike,
   toggleVideoLike,
+  toggleTweetLike,
 } from "../controllers/likeController.js";
 
 const router = Router();

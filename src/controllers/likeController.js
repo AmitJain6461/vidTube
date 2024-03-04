@@ -1,9 +1,9 @@
 import { isValidObjectId } from "mongoose";
-import { Comment } from "../models/commentModel";
+import { Comment } from "../models/commentModel.js";
 import { Like } from "../models/likeModel.js";
 import { Tweet } from "../models/tweetModel.js";
 import { ApiErrors } from "../utils/ApiErrors.js";
-import { ApiResponses } from "../utils/ApiResponses";
+import { ApiResponses } from "../utils/ApiResponses.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Video } from "./../models/videoModel.js";
 
@@ -14,20 +14,19 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
   const video = await Video.findById(videoId);
   if (!video || !video.isPublished)
     throw new ApiErrors(404, "Video does not exists");
-  if (video?.owner != req.user?._id)
-    throw new ApiErrors(404, "Unauthorised access");
+
   const isExist = await Like.findOne({
     video: videoId,
     likedBy: req.user?._id,
   });
-
+  console.log(isExist);
   if (isExist) {
     await Like.deleteOne({ video: videoId, likedBy: req.user?._id });
     res.status(200).json(new ApiResponses(200, {}, "Toggled successfully"));
   } else {
     const newLike = await Like.create({
       video: videoId,
-      likedBy: res.user?._id,
+      likedBy: req.user?._id,
     });
 
     if (!newLike) throw new ApiErrors(404, "Error while liking the video");
@@ -41,8 +40,6 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
   if (!commentId) throw new ApiErrors(404, "Videoid is required");
   const comment = await Comment.findById(commentId);
   if (!comment) throw new ApiErrors(404, "Comment does not exists");
-  if (comment?.owner != req.user?._id)
-    throw new ApiErrors(404, "Unauthorised access");
   const isExist = await Like.findOne({
     comment: commentId,
     likedBy: req.user?._id,
@@ -54,7 +51,7 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
   } else {
     const newLike = await Like.create({
       comment: commentId,
-      likedBy: res.user?._id,
+      likedBy: req.user?._id,
     });
 
     if (!newLike) throw new ApiErrors(404, "Error while liking the comment");
@@ -65,12 +62,10 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
 });
 const toggleTweetLike = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
-  if (!tweetId) throw new ApiErrors(404, "Videoid is required");
+  if (!tweetId) throw new ApiErrors(404, "Tweetid is required");
 
-  const tweet = await Tweet.findById(videoId);
+  const tweet = await Tweet.findById(tweetId);
   if (!tweet) throw new ApiErrors(404, "Tweet does not exists");
-  if (tweet?.owner != req.user?._id)
-    throw new ApiErrors(404, "Unauthorised access");
   const isExist = await Like.findOne({
     tweet: tweetId,
     likedBy: req.user?._id,
@@ -82,7 +77,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
   } else {
     const newLike = await Like.create({
       tweet: tweetId,
-      likedBy: res.user?._id,
+      likedBy: req.user?._id,
     });
 
     if (!newLike) throw new ApiErrors(404, "Error while liking the video");
@@ -129,11 +124,11 @@ const getAllLikedVideos = asyncHandler(async (req, res) => {
   const ownerInfo = {
     $lookup: {
       from: "users",
-      let: { ownerId: "likedVideos.owner" },
+      let: { ownerId: "$likedVideos.owner" },
       pipeline: [
         {
           $match: {
-            $expr: { $eq: ["$id", "$$owner_id"] },
+            $expr: { $eq: ["$_id", "$$ownerId"] },
           },
         },
         {
@@ -162,9 +157,9 @@ const getAllLikedVideos = asyncHandler(async (req, res) => {
       description: "$likedVideos.description",
       thumbnail: "$likedVideos.thumbnail",
       owner: {
-        username: "$likedVideos.owner.username",
-        fullName: "$likedVideos.owner.fullName",
-        avatar: "$likedVideos.owner.avatar",
+        username: "$owner.username",
+        fullName: "$owner.fullName",
+        avatar: "$owner.avatar",
       },
     },
   };
