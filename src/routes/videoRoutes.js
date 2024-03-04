@@ -33,6 +33,6 @@ router
   .delete(deleteVideo)
   .patch(upload.single("thumbnail"), updateVideo);
 
-router.route("/toogle/:videoId").patch(togglePublishButton);
+router.route("/toggle/:videoId").patch(togglePublishButton);
 
 export default router;

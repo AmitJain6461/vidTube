@@ -21,7 +21,6 @@ const isUserOwner = async (videoId, req) => {
 const getAllVideos = asyncHandler(async (req, res) => {
   let { page = 1, limit = 10, query, sortBy, sortType } = req.query;
   const userId = req.user?._id;
-  console.log(userId);
   //   first match with userID then search result based on query then sort results and then perform pagination
   page = parseInt(page);
   limit = parseInt(limit);
@@ -30,7 +29,6 @@ const getAllVideos = asyncHandler(async (req, res) => {
   limit = Math.min(20, Math.max(1, limit));
 
   const pipeline = [];
-  console.log(isValidObjectId(userId));
   if (!userId || !isValidObjectId(userId))
     throw new ApiErrors(404, "Invalid user");
   const resultMatch = {
@@ -221,11 +219,11 @@ const togglePublishButton = asyncHandler(async (req, res) => {
 
   if (!isauthorized) throw new ApiErrors(404, "Unauthorised access");
 
-  const video = Video.findById(videoId);
+  const video = await Video.findById(videoId);
   if (!video) throw new ApiErrors(404, "Video does not exists");
   const togglePublished = !video?.isPublished;
 
-  const updatedVideo = Video.findByIdAndUpdate(
+  const updatedVideo = await Video.findByIdAndUpdate(
     videoId,
     {
       $set: {
