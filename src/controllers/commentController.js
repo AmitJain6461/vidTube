@@ -101,22 +101,22 @@ const deleteComment = asyncHandler(async (req, res) => {
 });
 const getAllVideoComment = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  if (!videoId || !isValidObjectId(videoId) || !videoId.isPublished)
+  if (!videoId || !isValidObjectId(videoId))
     throw new ApiErrors(404, "Invalid videoid");
   const video = await Video.findById(videoId);
   if (!video) {
     await Comment.deleteMany({ video: videoId });
     throw new ApiErrors(404, "No video exists");
   }
+  if (!video.isPublished) throw new ApiErrors(404, "Video does not exists");
   const userId = req.user?._id;
   if (!userId) throw new ApiErrors(404, "Please login");
 
   const pipeline = [];
 
-  // 1. first match all comments based on userid and videoid
+  // 1. first match all comments based on videoid
   const firstMatch = {
     $match: {
-      owner: userId,
       video: new mongoose.Types.ObjectId(videoId),
     },
   };
@@ -155,7 +155,33 @@ const getAllVideoComment = asyncHandler(async (req, res) => {
     $unwind: "$videoInfo",
   };
   pipeline.push(unwindVideo);
+  // 6. taking vieo owner info
+  const videoOwner = {
+    $lookup: {
+      from: "users",
+      let: { ownerId: "$videoInfo.owner" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$_id", "$$ownerId"] },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            username: 1,
+          },
+        },
+      ],
+      as: "videoowner",
+    },
+  };
 
+  pipeline.push(videoOwner);
+  const unwindVideoOwner = {
+    $unwind: "$videoowner",
+  };
+  pipeline.push(unwindVideoOwner);
   // 6. Project important fields only
   const project = {
     $project: {
@@ -167,7 +193,7 @@ const getAllVideoComment = asyncHandler(async (req, res) => {
         avatar: "$ownedBy.avatar",
       },
       videoInfo: {
-        owner: "$videoInfo.owner",
+        owner: "$videoowner.username",
         title: "$videoInfo.title",
         videoFile: "$videoInfo.videoFile",
       },
