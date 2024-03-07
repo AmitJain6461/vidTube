@@ -9,6 +9,7 @@ import commentRouter from "./routes/commentRoutes.js";
 import subscriptionRouter from "./routes/subscriptionRoutes.js";
 import playlistRouter from "./routes/playlistRoutes.js";
 import dashboardRouter from "./routes/dashboardRoutes.js";
+import healthcheckRouter from "./routes/healthcheckRoutes.js";
 const app = express();
 
 // CORS is a security feature that prevents web pages from making requests to a different domain than the one that served the original page, unless explicitly allowed by the server.
@@ -30,4 +31,5 @@ app.use("/api/v1/comments", commentRouter);
 app.use("/api/v1/subscriptions", subscriptionRouter);
 app.use("/api/v1/playlists", playlistRouter);
 app.use("/api/v1/dashboards", dashboardRouter);
+app.use("/api/v1/healthchecks", healthcheckRouter);
 export { app };
