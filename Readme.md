@@ -2,7 +2,7 @@
 
 #### Objective :
 
-- Buid vidTube, a video hosting website with primary focus on backend technologies
+- Build vidTube, a video hosting website with primary focus on backend technologies
 
 #### Approach :
 
